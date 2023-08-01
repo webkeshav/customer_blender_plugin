@@ -7,6 +7,8 @@
 - You're all good to go!
 - Alternatively: you can copy-paste the code from kaedim_panel.py into a Blender Scripting Workspace. Once you run the script, the Kaedim Panel will work as expected
   
+![download1](images/download1.png)
+![download2](images/download2.png)
 ![installation1](images/installation1.png)
 ![installation2](images/installation2.png)
 ![installation3](images/installation3.png)
