@@ -164,7 +164,7 @@ class KAEDIM_OT_upload_file(bpy.types.Operator):
                 "Authorization": JWT
             }
             files = {
-                'devID': (None, '1483c860-1d71-4a90-aea9-ca8ec4a24d48'),
+                'devID': (None, DEV_ID),
                 'LoQ': (None, 'standard'),
                 'polycount': (None, '20000'),
                 'image': ('image.png', open(scene.selected_file_name, 'rb'), 'image/png'),
