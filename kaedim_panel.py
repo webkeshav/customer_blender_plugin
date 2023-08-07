@@ -19,7 +19,17 @@ Define Required global variables
 DEV_ID = None
 API_KEY = None
 JWT = None
-CREATED_OBJECTS = [] # List of pairs of (name, directory)
+CREATED_OBJECTS = [] # List of ObjectAsset
+TEMP_DIR = tempfile.mkdtemp()
+
+'''
+Define the Storage Structure of downlaoded assets
+'''
+class ObjectAsset:
+    def __init__(self, name, online_filepath):
+        self.name = name
+        self.online_filepath = online_filepath
+        self.local_filepath = None
 
 '''
 Define helper functions
@@ -30,7 +40,6 @@ def display_info_message(message):
 
     bpy.context.window_manager.popup_menu(draw, title="Info Message", icon='INFO')
 
-# 
 '''
 Define the Kaedim Panel
 '''
@@ -75,7 +84,7 @@ class KAEDIM_PT_panel(bpy.types.Panel):
             layout.operator("kaedim.retrieve_assets")
             layout.label(text='')
             for i in range(len(CREATED_OBJECTS)):
-                layout.operator("kaedim.add_object", text=f'Add {CREATED_OBJECTS[i][0]}').obj_idx = i
+                layout.operator("kaedim.add_object", text=f'Add {CREATED_OBJECTS[i].name}').obj_idx = i
 
             
 
@@ -205,33 +214,27 @@ class KAEDIM_OT_retrieve_assets(bpy.types.Operator):
             response = requests.get(url, headers=headers, json=body)
             data = response.json()
 
-            temp_dir = tempfile.mkdtemp()
-            print("Objects stored in " + temp_dir)
+            global TEMP_DIR
+            print("Objects stored in " + TEMP_DIR)
             global CREATED_OBJECTS
             CREATED_OBJECTS = []
             print('data received')
             print(data)
             for asset in data['assets']:
-                print('looking at asset')
                 try:
                     name = asset['image_tags'][0]
+                    print(f'Looking at asset `{name}`')
                     if not name: continue
 
                     online_filepath = asset['iterations'][-1]['results']
                     if type(online_filepath) != dict: continue
                     else: online_filepath = online_filepath['obj']
 
-                    img_response = requests.get(online_filepath)
-                    local_filepath = os.path.join(temp_dir, name)
-                    with open(local_filepath, "wb") as file:
-                        file.write(img_response.content)
-
-                    CREATED_OBJECTS.append((name, local_filepath))
+                    CREATED_OBJECTS.append(ObjectAsset(name, online_filepath))
 
                 except Exception as image_error:
                     display_info_message(image_error)
-            print('exiting loop')
-
+            print('Finished looking at assets')
         except Exception as e:
             display_info_message("Ran into error retrieving assets, try saving your keys again")
         return {'FINISHED'}
@@ -245,16 +248,31 @@ class KAEDIM_OT_add_object(bpy.types.Operator):
 
     def execute(self, context):
         global CREATED_OBJECTS
-        obj_filepath = CREATED_OBJECTS[self.obj_idx][1]
-        bpy.ops.wm.obj_import(filepath=obj_filepath)
+        asset = CREATED_OBJECTS[self.obj_idx]
+        if not asset.local_filepath:
+            self.download_object(asset)
+        print(asset.local_filepath)
+        bpy.ops.wm.obj_import(filepath=asset.local_filepath)
         return {'FINISHED'}
+    
+    def download_object(self, asset: CREATED_OBJECTS):
+        global TEMP_DIR, CREATED_OBJECTS
+        img_response = requests.get(asset.online_filepath)
+        local_filepath = os.path.join(TEMP_DIR, asset.name)
+        with open(local_filepath, "wb") as file:
+            file.write(img_response.content)
+        asset.local_filepath = local_filepath
 
 '''
 Register newly defined operators, panels, and properties
 '''
 def register():
-    bpy.types.Scene.dev_id = bpy.props.StringProperty(name="Enter your DEV_ID from the portal here")
-    bpy.types.Scene.api_key = bpy.props.StringProperty(name="Enter your API_KEY from the portal here")
+    bpy.types.Scene.dev_id = bpy.props.StringProperty(
+        name="Enter your DEV_ID from the portal here",
+    )
+    bpy.types.Scene.api_key = bpy.props.StringProperty(
+        name="Enter your API_KEY from the portal here",
+    )
     bpy.types.Scene.selected_file_name = bpy.props.StringProperty(name="Selected File", default = "")
     # bpy.types.Scene.object_name = bpy.props.StringProperty(name="Desired Object Name")
     bpy.types.Scene.max_polycount = bpy.props.StringProperty(name="Desired Maximum Polycount, maximum 30000")
