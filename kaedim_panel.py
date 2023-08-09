@@ -98,31 +98,51 @@ class KAEDIM_OT_register_keys(bpy.types.Operator):
     bl_description = "Register Keys"
     bl_category = 'Kaedim'
     bl_options = {'REGISTER'}
-
-    def execute(self, context):
-        # Get the text from the text boxes and save them to the global variables
-        global DEV_ID, API_KEY, JWT
-        DEV_ID = context.scene.dev_id
-        API_KEY = context.scene.api_key
-        
+    
+    def try_register(self, dev_id, api_key, destinationURL):
         # Call the API to retrieve the JWT
+        global JWT
         url = "https://api.kaedim3d.com/api/v1/registerHook"
         headers = {
             "Content-Type": "application/json",
-            "X-API-Key": API_KEY
+            "X-API-Key": api_key
         }
         body = {
-            'devID': DEV_ID,
-            'destination': 'http://example.com/invalid-webhook'
+            'devID': dev_id,
+            'destination': destinationURL
         }
         try:
             response = requests.post(url, headers=headers, json=body)
             data = response.json()
             print('Received Response', data)
+            if data['message'] == 'Webhook already registered':
+                return False
             JWT = data['jwt']
             display_info_message('Keys successfully registered')
+        except:
+            return False
+        return True
 
-        except Exception as e:
+
+
+    def execute(self, context):
+        # Get the text from the text boxes and save them to the global variables
+        global DEV_ID, API_KEY
+        DEV_ID = context.scene.dev_id
+        API_KEY = context.scene.api_key
+        
+        destinationURL = 'http://example.com/invalid-webhook'
+        attemptLimit = 3
+        attempts = 0
+        
+        while attempts < attemptLimit:
+            if self.try_register(DEV_ID, API_KEY, destinationURL): 
+                break
+            attempts += 1
+            destinationURL += '1'
+
+
+        if attempts == attemptLimit:
             display_info_message(f'Ran into an issue registering keys, please check your keys')
 
         return {'FINISHED'}
