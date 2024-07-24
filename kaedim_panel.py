@@ -43,6 +43,34 @@ def display_info_message(message):
 '''
 Define the Kaedim Panel
 '''
+
+# Function to download the image from the URL
+def download_image(url, save_path):
+    response = requests.get(url)
+    if response.status_code == 200:
+        with open(save_path, 'wb') as f:
+            f.write(response.content)
+        return True
+    return False
+
+# Function to load the image into Blender
+def load_image(image_path):
+    if os.path.exists(image_path):
+        try:
+            img = bpy.data.images.load(image_path)
+        except RuntimeError:
+            img = None
+    else:
+        img = None
+    return img
+
+
+# Custom property to hold the image
+class ImageItem(bpy.types.PropertyGroup):
+    name: bpy.props.StringProperty()
+    image: bpy.props.PointerProperty(type=bpy.types.Image)
+
+
 class KAEDIM_PT_panel(bpy.types.Panel):
     bl_idname = 'KAEDIM_PT_PANEL'
     bl_label = 'Kaedim'
@@ -52,6 +80,7 @@ class KAEDIM_PT_panel(bpy.types.Panel):
  
     def draw(self, context):
         layout = self.layout
+        scene = context.scene
 
         layout.prop(context.scene, "dev_id", text="DEV ID")
         layout.prop(context.scene, "api_key", text="API KEY")
@@ -83,8 +112,13 @@ class KAEDIM_PT_panel(bpy.types.Panel):
             layout.label(text='Asset names are adjustable online')
             layout.operator("kaedim.retrieve_assets")
             layout.label(text='')
-            for i in range(len(CREATED_OBJECTS)):
-                layout.operator("kaedim.add_object", text=f'Add {CREATED_OBJECTS[i].name}').obj_idx = i
+            # for i in range(len(CREATED_OBJECTS)):
+            #     layout.operator("kaedim.add_object", text=f'Add {CREATED_OBJECTS[i].name}').obj_idx = i
+            for item in scene.my_image_collection:
+                if item.image:
+                    layout.label(text=item.name)
+                    layout.template_ID_preview(item, "image", new="image.new", open="image.open")
+            
 
             
 
@@ -239,16 +273,29 @@ class KAEDIM_OT_retrieve_assets(bpy.types.Operator):
             global CREATED_OBJECTS
             CREATED_OBJECTS = []
             print('data received')
-            print(data)
+            print(f"image url for st image {data['assets'][0]['image'][0]}")
+
+            temp_dir = bpy.app.tempdir
             for asset in data['assets']:
                 try:
                     name = asset['image_tags'][0]
+                    image_url = asset['image'][0]
                     print(f'Looking at asset `{name}`')
                     if not name: continue
 
                     online_filepath = asset['iterations'][-1]['results']
                     if type(online_filepath) != dict: continue
                     else: online_filepath = online_filepath['obj']
+
+                    temp_image_path = os.path.join(temp_dir, f"temp_image_{i}.png")
+                    if download_image(image_url, temp_image_path):
+                        img = load_image(temp_image_path)
+                        if img:
+                            item = bpy.context.scene.my_image_collection.add()
+                            item.name = f"{name}"
+                            item.image = img
+
+                    
 
                     CREATED_OBJECTS.append(ObjectAsset(name, online_filepath))
 
@@ -286,15 +333,17 @@ class KAEDIM_OT_add_object(bpy.types.Operator):
 '''
 Register newly defined operators, panels, and properties
 '''
+
 def register():
+    bpy.utils.register_class(ImageItem)
     bpy.types.Scene.dev_id = bpy.props.StringProperty(
         name="Enter your DEV_ID from the portal here",
     )
     bpy.types.Scene.api_key = bpy.props.StringProperty(
         name="Enter your API_KEY from the portal here",
     )
-    bpy.types.Scene.selected_file_name = bpy.props.StringProperty(name="Selected File", default = "")
-    # bpy.types.Scene.object_name = bpy.props.StringProperty(name="Desired Object Name")
+    bpy.types.Scene.selected_file_name = bpy.props.StringProperty(name="Selected File", default="")
+    bpy.types.Scene.my_image_collection = bpy.props.CollectionProperty(type=ImageItem)
     bpy.types.Scene.max_polycount = bpy.props.StringProperty(name="Desired Maximum Polycount, maximum 30000")
     bpy.types.Scene.quality_options = bpy.props.StringProperty(name='Desired Object Quality, must be "standard", "high", or "ultra"')
     bpy.utils.register_class(KAEDIM_PT_panel)
@@ -304,21 +353,19 @@ def register():
     bpy.utils.register_class(KAEDIM_OT_retrieve_assets)
     bpy.utils.register_class(KAEDIM_OT_add_object)
 
-'''
-Clean up all stored data
-'''
 def unregister():
     global DEV_ID, API_KEY, JWT, CREATED_OBJECTS
-    for (_, filepath) in CREATED_OBJECTS:
-        os.remove(filepath)
+    for asset in CREATED_OBJECTS:
+        os.remove(asset.local_filepath)
     DEV_ID, API_KEY, JWT, CREATED_OBJECTS = '', '', '', []
     bpy.utils.unregister_class(KAEDIM_PT_panel)
+    bpy.utils.unregister_class(ImageItem)
     bpy.utils.unregister_class(KAEDIM_OT_register_keys)
     bpy.utils.unregister_class(KAEDIM_OT_select_file)
     bpy.utils.unregister_class(KAEDIM_OT_upload_file)
     bpy.utils.unregister_class(KAEDIM_OT_retrieve_assets)
     bpy.utils.unregister_class(KAEDIM_OT_add_object)
+    del bpy.types.Scene.my_image_collection
 
- 
 if __name__ == '__main__':
     register()
