@@ -68,6 +68,7 @@ def load_image(image_path):
 # Custom property to hold the image
 class ImageItem(bpy.types.PropertyGroup):
     name: bpy.props.StringProperty()
+    asset_path : bpy.props.IntProperty()
     image: bpy.props.PointerProperty(type=bpy.types.Image)
 
 
@@ -112,12 +113,14 @@ class KAEDIM_PT_panel(bpy.types.Panel):
             layout.label(text='Asset names are adjustable online')
             layout.operator("kaedim.retrieve_assets")
             layout.label(text='')
-            # for i in range(len(CREATED_OBJECTS)):
-            #     layout.operator("kaedim.add_object", text=f'Add {CREATED_OBJECTS[i].name}').obj_idx = i
+#            for i in range(len(CREATED_OBJECTS)):
+#                 layout.operator("kaedim.add_object", text=f'Add {CREATED_OBJECTS[i].name}').obj_idx = i
             for item in scene.my_image_collection:
                 if item.image:
                     layout.label(text=item.name)
                     layout.template_ID_preview(item, "image", new="image.new", open="image.open")
+                    layout.operator("kaedim.add_object", text=f'Add {item.name}').obj_idx = item.asset_path
+                    
             
 
             
@@ -276,28 +279,35 @@ class KAEDIM_OT_retrieve_assets(bpy.types.Operator):
             print(f"image url for st image {data['assets'][0]['image'][0]}")
 
             temp_dir = bpy.app.tempdir
-            for asset in data['assets']:
+#            for i in range(0,2):
+            for idx, asset in enumerate(data['assets']):
                 try:
                     name = asset['image_tags'][0]
                     image_url = asset['image'][0]
                     print(f'Looking at asset `{name}`')
-                    if not name: continue
+                    if not name:
+                        continue
 
                     online_filepath = asset['iterations'][-1]['results']
-                    if type(online_filepath) != dict: continue
-                    else: online_filepath = online_filepath['obj']
+                    if type(online_filepath) != dict:
+                        continue
+                    else:
+                        online_filepath = online_filepath['obj']
+                        
+                    CREATED_OBJECTS.append(ObjectAsset(name, online_filepath))
 
-                    temp_image_path = os.path.join(temp_dir, f"temp_image_{i}.png")
+                    temp_image_path = os.path.join(temp_dir, f"temp_image_{name}.png")
                     if download_image(image_url, temp_image_path):
                         img = load_image(temp_image_path)
                         if img:
                             item = bpy.context.scene.my_image_collection.add()
                             item.name = f"{name}"
+                            item.asset_path = idx
                             item.image = img
 
                     
 
-                    CREATED_OBJECTS.append(ObjectAsset(name, online_filepath))
+                    
 
                 except Exception as image_error:
                     display_info_message(image_error)
