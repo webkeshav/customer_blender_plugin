@@ -115,11 +115,13 @@ class KAEDIM_PT_panel(bpy.types.Panel):
             layout.label(text='')
 #            for i in range(len(CREATED_OBJECTS)):
 #                 layout.operator("kaedim.add_object", text=f'Add {CREATED_OBJECTS[i].name}').obj_idx = i
+            grid = layout.grid_flow(row_major=True, columns=2, even_columns=True, even_rows=True)
             for item in scene.my_image_collection:
                 if item.image:
-                    layout.label(text=item.name)
-                    layout.template_ID_preview(item, "image", new="image.new", open="image.open")
-                    layout.operator("kaedim.add_object", text=f'Add {item.name}').obj_idx = item.asset_path
+                    box = grid.box()
+                    box.label(text=item.name)
+                    box.template_ID_preview(item, "image", new="image.new", open="image.open")
+                    box.operator("kaedim.add_object", text=f'Import').obj_idx = item.asset_path
                     
             
 
@@ -270,6 +272,7 @@ class KAEDIM_OT_retrieve_assets(bpy.types.Operator):
         try:
             response = requests.get(url, headers=headers, json=body)
             data = response.json()
+#            print("Response Data: ", data)  # 
 
             if not data or 'assets' not in data:
                 display_info_message("No assets found in response")
@@ -286,9 +289,9 @@ class KAEDIM_OT_retrieve_assets(bpy.types.Operator):
                 try:
                     name = asset['image_tags'][0] if asset['image_tags'] else f"Asset_{counter_index}"
                     image_url = asset['image'][0] if asset['image'] else None
-                    print(f'Looking at asset `{name}` with image URL: {image_url}')
+                    print(f'Looking at asset `{name}` ')
 
-                    if not image_url:
+                    if not name:
                         continue
 
                     online_filepath = asset['iterations'][-1]['results']['obj'] if asset['iterations'] and 'results' in asset['iterations'][-1] else None
