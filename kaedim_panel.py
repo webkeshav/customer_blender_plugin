@@ -271,29 +271,30 @@ class KAEDIM_OT_retrieve_assets(bpy.types.Operator):
             response = requests.get(url, headers=headers, json=body)
             data = response.json()
 
-            global TEMP_DIR
+            if not data or 'assets' not in data:
+                display_info_message("No assets found in response")
+                return {'CANCELLED'}
+
+            global TEMP_DIR, CREATED_OBJECTS
             print("Objects stored in " + TEMP_DIR)
-            global CREATED_OBJECTS
-            CREATED_OBJECTS = []
-            print('data received')
-            print(f"image url for st image {data['assets'][0]['image'][0]}")
+            CREATED_OBJECTS.clear()
 
             temp_dir = bpy.app.tempdir
-#            for i in range(0,2):
-            for idx, asset in enumerate(data['assets']):
+            counter_index = 0
+
+            for asset in data['assets']:
                 try:
-                    name = asset['image_tags'][0]
-                    image_url = asset['image'][0]
-                    print(f'Looking at asset `{name}`')
-                    if not name:
+                    name = asset['image_tags'][0] if asset['image_tags'] else f"Asset_{counter_index}"
+                    image_url = asset['image'][0] if asset['image'] else None
+                    print(f'Looking at asset `{name}` with image URL: {image_url}')
+
+                    if not image_url:
                         continue
 
-                    online_filepath = asset['iterations'][-1]['results']
-                    if type(online_filepath) != dict:
+                    online_filepath = asset['iterations'][-1]['results']['obj'] if asset['iterations'] and 'results' in asset['iterations'][-1] else None
+                    if not online_filepath:
                         continue
-                    else:
-                        online_filepath = online_filepath['obj']
-                        
+
                     CREATED_OBJECTS.append(ObjectAsset(name, online_filepath))
 
                     temp_image_path = os.path.join(temp_dir, f"temp_image_{name}.png")
@@ -301,18 +302,18 @@ class KAEDIM_OT_retrieve_assets(bpy.types.Operator):
                         img = load_image(temp_image_path)
                         if img:
                             item = bpy.context.scene.my_image_collection.add()
-                            item.name = f"{name}"
-                            item.asset_path = idx
+                            item.name = name
+                            item.asset_path = counter_index
                             item.image = img
-
-                    
-
-                    
+                    counter_index += 1
 
                 except Exception as image_error:
-                    display_info_message(image_error)
+                    print(f"Error processing asset {counter_index}: {image_error}")
+                    display_info_message(str(image_error))
+
             print('Finished looking at assets')
         except Exception as e:
+            print(f"Error retrieving assets: {e}")
             display_info_message("Ran into error retrieving assets, try saving your keys again")
         return {'FINISHED'}
 
@@ -325,6 +326,7 @@ class KAEDIM_OT_add_object(bpy.types.Operator):
 
     def execute(self, context):
         global CREATED_OBJECTS
+        print(f"the selected index is {self.obj_idx}")
         asset = CREATED_OBJECTS[self.obj_idx]
         if not asset.local_filepath:
             self.download_object(asset)
