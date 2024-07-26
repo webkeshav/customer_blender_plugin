@@ -113,15 +113,17 @@ class KAEDIM_PT_panel(bpy.types.Panel):
             layout.label(text='Asset names are adjustable online')
             layout.operator("kaedim.retrieve_assets")
             layout.label(text='')
-#            for i in range(len(CREATED_OBJECTS)):
-#                 layout.operator("kaedim.add_object", text=f'Add {CREATED_OBJECTS[i].name}').obj_idx = i
-            grid = layout.grid_flow(row_major=True, columns=2, even_columns=True, even_rows=True)
-            for item in scene.my_image_collection:
-                if item.image:
-                    box = grid.box()
-                    box.label(text=item.name)
-                    box.template_ID_preview(item, "image", new="image.new", open="image.open")
-                    box.operator("kaedim.add_object", text=f'Import').obj_idx = item.asset_path
+#            
+#            grid = layout.grid_flow(row_major=True, columns=2, even_columns=True, even_rows=True)
+            row = None
+            for i, item in enumerate(scene.my_image_collection):
+                if i % 2 == 0:
+                    row = layout.row()
+                box = row.box()
+                col = box.column()
+                col.template_ID_preview(item, "image", hide_buttons=True)
+                col.operator("kaedim.add_object", text="Import").obj_idx = item.asset_path
+
                     
             
 
@@ -300,7 +302,7 @@ class KAEDIM_OT_retrieve_assets(bpy.types.Operator):
 
                     CREATED_OBJECTS.append(ObjectAsset(name, online_filepath))
 
-                    temp_image_path = os.path.join(temp_dir, f"temp_image_{name}.png")
+                    temp_image_path = os.path.join(temp_dir, f"{name}_.png")
                     if download_image(image_url, temp_image_path):
                         img = load_image(temp_image_path)
                         if img:
@@ -312,7 +314,7 @@ class KAEDIM_OT_retrieve_assets(bpy.types.Operator):
 
                 except Exception as image_error:
                     print(f"Error processing asset {counter_index}: {image_error}")
-                    display_info_message(str(image_error))
+                    # display_info_message(str(image_error))
 
             print('Finished looking at assets')
         except Exception as e:
